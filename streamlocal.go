@@ -2,11 +2,14 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -128,6 +131,16 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 			return false, nil
 		}
 
+		// Remove existing socket if it exists. We do not use os.Remove() here
+		// so that directories are kept. Note that it's possible that we will
+		// overwrite a regular file here. Both of these behaviors match OpenSSH,
+		// however, which is why we unlink.
+		err = unlink(addr)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			// TODO: log unlink failure
+			return false, nil
+		}
+
 		ln, err := net.Listen("unix", addr)
 		if err != nil {
 			// TODO: log unix listen failure
@@ -200,5 +213,17 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 
 	default:
 		return false, nil
+	}
+}
+
+// unlink removes files and unlike os.Remove, directories are kept.
+func unlink(path string) error {
+	// Ignore EINTR like os.Remove, see ignoringEINTR in os/file_posix.go
+	// for more details.
+	for {
+		err := syscall.Unlink(path)
+		if !errors.Is(err, syscall.EINTR) {
+			return err
+		}
 	}
 }
