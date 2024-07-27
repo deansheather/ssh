@@ -110,7 +110,7 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 			return false, nil
 		}
 
-		if srv.ReverseUnixForwardingCallback == nil || !srv.ReverseUnixForwardingCallback(ctx, reqPayload.SocketPath) {
+		if srv.ReverseUnixForwardingCallback == nil || srv.ReverseUnixForwardingCallback(ctx, reqPayload.SocketPath) == nil {
 			return false, []byte("unix forwarding is disabled")
 		}
 
@@ -141,7 +141,7 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 			return false, nil
 		}
 
-		ln, err := net.Listen("unix", addr)
+		ln, err := srv.ReverseUnixForwardingCallback(ctx, reqPayload.SocketPath)()
 		if err != nil {
 			// TODO: log unix listen failure
 			return false, nil
