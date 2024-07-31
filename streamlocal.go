@@ -123,25 +123,7 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 			return false, nil
 		}
 
-		// Create socket parent dir if not exists.
-		parentDir := filepath.Dir(addr)
-		err = os.MkdirAll(parentDir, 0700)
-		if err != nil {
-			// TODO: log mkdir failure
-			return false, nil
-		}
-
-		// Remove existing socket if it exists. We do not use os.Remove() here
-		// so that directories are kept. Note that it's possible that we will
-		// overwrite a regular file here. Both of these behaviors match OpenSSH,
-		// however, which is why we unlink.
-		err = unlink(addr)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			// TODO: log unlink failure
-			return false, nil
-		}
-
-		ln, err := srv.ReverseUnixForwardingCallback(ctx, reqPayload.SocketPath)()
+		ln, err := srv.ReverseUnixForwardingCallback(ctx, addr)(addr)
 		if err != nil {
 			// TODO: log unix listen failure
 			return false, nil
@@ -226,4 +208,32 @@ func unlink(path string) error {
 			return err
 		}
 	}
+}
+
+func DefaultSocketListener(socketPath string) (net.Listener, error) {
+	// Create socket parent dir if not exists.
+	parentDir := filepath.Dir(socketPath)
+	err := os.MkdirAll(parentDir, 0700)
+	if err != nil {
+		// TODO: log mkdir failure
+		return nil, nil
+	}
+
+	// Remove existing socket if it exists. We do not use os.Remove() here
+	// so that directories are kept. Note that it's possible that we will
+	// overwrite a regular file here. Both of these behaviors match OpenSSH,
+	// however, which is why we unlink.
+	err = unlink(socketPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		// TODO: log unlink failure
+		return nil, nil
+	}
+
+	ln, err := net.Listen("unix", socketPath)
+	if err != nil {
+		// TODO: log listen failure
+		return nil, err
+	}
+
+	return ln, err
 }

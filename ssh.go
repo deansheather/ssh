@@ -70,7 +70,7 @@ type LocalUnixForwardingCallback func(ctx Context, socketPath string) bool
 
 // ReverseUnixForwardingCallback is a hook for allowing reverse unix forwarding
 // (streamlocal-forward@openssh.com).
-type ReverseUnixForwardingCallback func(ctx Context, socketPath string) func() (net.Listener, error)
+type ReverseUnixForwardingCallback func(ctx Context, socketPath string) func(socketPath string) (net.Listener, error)
 
 // ServerConfigCallback is a hook for creating custom default server configs
 type ServerConfigCallback func(ctx Context) *gossh.ServerConfig
