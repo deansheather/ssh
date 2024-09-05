@@ -110,7 +110,7 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 			return false, nil
 		}
 
-		if srv.ReverseUnixForwardingCallback == nil || srv.ReverseUnixForwardingCallback(ctx, reqPayload.SocketPath) == nil {
+		if srv.ReverseUnixForwardingCallback == nil {
 			return false, []byte("unix forwarding is disabled")
 		}
 
@@ -123,8 +123,11 @@ func (h *ForwardedUnixHandler) HandleSSHRequest(ctx Context, srv *Server, req *g
 			return false, nil
 		}
 
-		ln, err := srv.ReverseUnixForwardingCallback(ctx, addr)(addr)
+		ln, err := srv.ReverseUnixForwardingCallback(ctx, addr)
 		if err != nil {
+			if errors.Is(err, ErrRejected) {
+				return false, []byte("unix forwarding is disabled")
+			}
 			// TODO: log unix listen failure
 			return false, nil
 		}
@@ -210,13 +213,15 @@ func unlink(path string) error {
 	}
 }
 
-func DefaultSocketListener(socketPath string) (net.Listener, error) {
+// SimpleUnixReverseForwardingCallback provides a basic implementation for
+// ReverseUnixForwardingCallback. The parent directory will be created (with
+// os.MkdirAll), and existing files with the same name will be removed.
+func SimpleUnixReverseForwardingCallback(_ Context, socketPath string) (net.Listener, error) {
 	// Create socket parent dir if not exists.
 	parentDir := filepath.Dir(socketPath)
 	err := os.MkdirAll(parentDir, 0700)
 	if err != nil {
-		// TODO: log mkdir failure
-		return nil, nil
+		return nil, fmt.Errorf("failed to create parent directory %q for socket %q: %w", parentDir, socketPath, err)
 	}
 
 	// Remove existing socket if it exists. We do not use os.Remove() here
@@ -225,14 +230,12 @@ func DefaultSocketListener(socketPath string) (net.Listener, error) {
 	// however, which is why we unlink.
 	err = unlink(socketPath)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		// TODO: log unlink failure
-		return nil, nil
+		return nil, fmt.Errorf("failed to remove existing file in socket path %q: %w", socketPath, err)
 	}
 
 	ln, err := net.Listen("unix", socketPath)
 	if err != nil {
-		// TODO: log listen failure
-		return nil, err
+		return nil, fmt.Errorf("failed to listen on unix socket %q: %w", socketPath, err)
 	}
 
 	return ln, err

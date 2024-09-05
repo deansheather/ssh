@@ -127,11 +127,11 @@ func TestReverseUnixForwardingWorks(t *testing.T) {
 
 	_, client, cleanup := newTestSession(t, &Server{
 		Handler: func(s Session) {},
-		ReverseUnixForwardingCallback: func(ctx Context, socketPath string) bool {
+		ReverseUnixForwardingCallback: func(ctx Context, socketPath string) (net.Listener, error) {
 			if socketPath != remoteSocketPath {
 				panic("unexpected socket path: " + socketPath)
 			}
-			return true
+			return SimpleUnixReverseForwardingCallback(ctx, socketPath)
 		},
 	}, nil)
 	defer cleanup()
@@ -182,12 +182,12 @@ func TestReverseUnixForwardingRespectsCallback(t *testing.T) {
 	var called int64
 	_, client, cleanup := newTestSession(t, &Server{
 		Handler: func(s Session) {},
-		ReverseUnixForwardingCallback: func(ctx Context, socketPath string) bool {
+		ReverseUnixForwardingCallback: func(ctx Context, socketPath string) (net.Listener, error) {
 			atomic.AddInt64(&called, 1)
 			if socketPath != remoteSocketPath {
 				panic("unexpected socket path: " + socketPath)
 			}
-			return false
+			return nil, ErrRejected
 		},
 	}, nil)
 	defer cleanup()

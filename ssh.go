@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net"
 
 	gossh "golang.org/x/crypto/ssh"
@@ -28,6 +29,9 @@ const (
 
 // DefaultHandler is the default Handler used by Serve.
 var DefaultHandler Handler
+
+// ErrReject is returned by some callbacks to reject a request.
+var ErrRejected = errors.New("rejected")
 
 // Option is a functional option handler for Server.
 type Option func(*Server) error
@@ -69,8 +73,9 @@ type ReversePortForwardingCallback func(ctx Context, bindHost string, bindPort u
 type LocalUnixForwardingCallback func(ctx Context, socketPath string) bool
 
 // ReverseUnixForwardingCallback is a hook for allowing reverse unix forwarding
-// (streamlocal-forward@openssh.com).
-type ReverseUnixForwardingCallback func(ctx Context, socketPath string) func(socketPath string) (net.Listener, error)
+// (streamlocal-forward@openssh.com). Returning ErrRejected will reject the
+// request.
+type ReverseUnixForwardingCallback func(ctx Context, socketPath string) (net.Listener, error)
 
 // ServerConfigCallback is a hook for creating custom default server configs
 type ServerConfigCallback func(ctx Context) *gossh.ServerConfig
